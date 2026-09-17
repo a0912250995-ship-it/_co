@@ -16,5 +16,10 @@ CHIP DMux4Way {
     OUT a, b, c, d;
 
     PARTS:
-    // Put your code here:
+    // 第一層：先用 sel[1] 分成前組 (ab) 和後組 (cd)
+    DMux(in=in, sel=sel[1], a=ab, b=cd);
+
+    // 第二層：再用 sel[0] 分配到具體的腳位
+    DMux(in=ab, sel=sel[0], a=a, b=b);
+    DMux(in=cd, sel=sel[0], a=c, b=d);
 }
