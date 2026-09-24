@@ -4,14 +4,18 @@
 // File name: projects/02/HalfAdder.hdl
 
 /**
- * Computes the sum of two bits.
+ * 計算兩個 1 位元的總和。
  */
 
 CHIP HalfAdder {
-    IN a, b;    // 1-bit inputs
-    OUT sum,    // Right bit of a + b 
-        carry;  // Left bit of a + b
+    IN a, b;    // 1 位元輸入
+    OUT sum,    // 加法結果的右側低位 (LSB)
+        carry;  // 加法結果的左側進位 (MSB)
 
     PARTS:
-    // Put you code here:
+    // 當 a 與 b 只有一個是 1 時，sum = 1 (使用 Xor)
+    Xor(a=a, b=b, out=sum);
+
+    // 當 a 與 b 同時為 1 時產生進位，carry = 1 (使用 And)
+    And(a=a, b=b, out=carry);
 }

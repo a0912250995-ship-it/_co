@@ -1,46 +1,77 @@
-// This file is part of www.nand2tetris.org
-// and the book "The Elements of Computing Systems"
-// by Nisan and Schocken, MIT Press.
-// File name: projects/02/ALU.hdl
+// 此檔案為 www.nand2tetris.org 與
+// 書籍《The Elements of Computing Systems》（MIT Press 出版）的一部分。
+// 檔名：projects/02/ALU.hdl
 
 /**
- * The ALU (Arithmetic Logic Unit).
- * Computes one of the following functions:
+ * 算術邏輯單元（ALU, Arithmetic Logic Unit）。
+ * 根據 6 個控制位元（zx, nx, zy, ny, f, no）對兩個 16 位元輸入（x, y）
+ * 計算下列功能之一：
  * x+y, x-y, y-x, 0, 1, -1, x, y, -x, -y, !x, !y,
- * x+1, y+1, x-1, y-1, x&y, x|y on two 16-bit inputs, 
- * according to 6 input bits denoted zx,nx,zy,ny,f,no.
- * In addition, the ALU computes two 1-bit outputs:
- * if the ALU output == 0, zr is set to 1; otherwise zr is set to 0;
- * if the ALU output < 0, ng is set to 1; otherwise ng is set to 0.
+ * x+1, y+1, x-1, y-1, x&y, x|y。
+ *
+ * 此外，ALU 還會計算出兩個 1 位元的狀態標誌（flags）：
+ * 如果輸出 == 0，則 zr = 1；否則 zr = 0。
+ * 如果輸出 < 0，則 ng = 1；否則 ng = 0。
  */
-
-// Implementation: the ALU logic manipulates the x and y inputs
-// and operates on the resulting values, as follows:
-// if (zx == 1) set x = 0        // 16-bit constant
-// if (nx == 1) set x = !x       // bitwise not
-// if (zy == 1) set y = 0        // 16-bit constant
-// if (ny == 1) set y = !y       // bitwise not
-// if (f == 1)  set out = x + y  // integer 2's complement addition
-// if (f == 0)  set out = x & y  // bitwise and
-// if (no == 1) set out = !out   // bitwise not
-// if (out == 0) set zr = 1
-// if (out < 0) set ng = 1
 
 CHIP ALU {
     IN  
-        x[16], y[16],  // 16-bit inputs        
-        zx, // zero the x input?
-        nx, // negate the x input?
-        zy, // zero the y input?
-        ny, // negate the y input?
-        f,  // compute out = x + y (if 1) or x & y (if 0)
-        no; // negate the out output?
+        x[16], y[16],  // 16 位元輸入        
+        zx, // 是否將 x 輸入清零？
+        nx, // 是否將 x 輸入取反（NOT）？
+        zy, // 是否將 y 輸入清零？
+        ny, // 是否將 y 輸入取反（NOT）？
+        f,  // 運算選擇：1 代表加法 (x + y)，0 代表逐位元及運算 (x & y)
+        no; // 是否將輸出結果取反（NOT）？
 
     OUT 
-        out[16], // 16-bit output
-        zr, // 1 if (out == 0), 0 otherwise
-        ng; // 1 if (out < 0),  0 otherwise
+        out[16], // 16 位元輸出
+        zr,      // 若 out == 0 則為 1，否則為 0
+        ng;      // 若 out < 0  則為 1，否則為 0
 
     PARTS:
-   // Put you code here:
+    // --- 1. 處理 X 輸入（zx, nx）---
+    // 若 zx == 1，將 x 設為 0；否則保持原本的 x
+    Mux16(a=x, b=false, sel=zx, out=xZeroed);
+    // 計算非（NOT）值
+    Not16(in=xZeroed, out=notX);
+    // 若 nx == 1，將 x 取反；否則保持清零後的結果
+    Mux16(a=xZeroed, b=notX, sel=nx, out=xFinal);
+
+    // --- 2. 處理 Y 輸入（zy, ny）---
+    // 若 zy == 1，將 y 設為 0；否則保持原本的 y
+    Mux16(a=y, b=false, sel=zy, out=yZeroed);
+    // 計算非（NOT）值
+    Not16(in=yZeroed, out=notY);
+    // 若 ny == 1，將 y 取反；否則保持清零後的結果
+    Mux16(a=yZeroed, b=notY, sel=ny, out=yFinal);
+
+    // --- 3. 核心運算（f）---
+    // 同時計算加法與逐位元 AND
+    Add16(a=xFinal, b=yFinal, out=addOut);
+    And16(a=xFinal, b=yFinal, out=andOut);
+    // 若 f == 1 選擇加法結果，若 f == 0 選擇 AND 結果
+    Mux16(a=andOut, b=addOut, sel=f, out=fOut);
+
+    // --- 4. 輸出取反（no）與分流拉線 ---
+    // 計算取反後的結果
+    Not16(in=fOut, out=notFOut);
+    // 根據 no 決定輸出，並同時分流出：
+    // - 最終輸出 out
+    // - 最高有效位元 out[15]（作為負數標誌 ng）
+    // - 低 8 位元 out[0..7] 與高 8 位元 out[8..15]（用於判斷是否全為 0）
+    Mux16(a=fOut, b=notFOut, sel=no, 
+          out=out, 
+          out[15]=ng, 
+          out[0..7]=lowHalf, 
+          out[8..15]=highHalf);
+
+    // --- 5. 判斷輸出是否為零（zr 標誌）---
+    // 分別檢查低 8 位元與高 8 位元是否有任何一個位元為 1
+    Or8Way(in=lowHalf, out=orLow);
+    Or8Way(in=highHalf, out=orHigh);
+    // 將兩個 8 位元的結果合併 OR 運算
+    Or(a=orLow, b=orHigh, out=orAll);
+    // 若 16 個位元全部皆為 0（orAll 為 0），取 NOT 後 zr 才會為 1
+    Not(in=orAll, out=zr);
 }
