@@ -4,14 +4,21 @@
 // File name: projects/02/FullAdder.hdl
 
 /**
- * Computes the sum of three bits.
+ * 計算三個 1 位元的總和 (a + b + c)。
  */
 
 CHIP FullAdder {
-    IN a, b, c;  // 1-bit inputs
-    OUT sum,     // Right bit of a + b + c
-        carry;   // Left bit of a + b + c
+    IN a, b, c;  // 1 位元輸入
+    OUT sum,     // 加法結果的右側低位 (LSB)
+        carry;   // 加法結果的左側進位 (MSB)
 
     PARTS:
-    // Put you code here:
+    // 1. 將 a 和 b 相加，產生局部總和 s1 與進位 c1
+    HalfAdder(a=a, b=b, sum=s1, carry=c1);
+
+    // 2. 將 s1 和 c 相加，得到最終總和 sum 與第二個進位 c2
+    HalfAdder(a=s1, b=c, sum=sum, carry=c2);
+
+    // 3. 兩次相加只要有任何一次產生進位，carry 就為 1
+    Or(a=c1, b=c2, out=carry);
 }
